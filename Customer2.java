@@ -9,7 +9,7 @@ class Customer2 {
     ArrayList<Account2> accounts = new ArrayList<>();
     PasswordManager2 pwdManager;
     int txnCount = 0;
-    boolean mustChangePwd = false; // false = Transaction2s allowed, true = must change password before next txn
+    boolean mustChangePwd = false; // false = Transactionss allowed, true = must change password before next txn
 
     Customer2(int cusID, String name, String password){
         this.cusID = cusID;
@@ -18,7 +18,7 @@ class Customer2 {
         accounts.add(firstAccount2);
         this.pwdManager = new PasswordManager2();
         this.pwdManager.encryptedPwd = PasswordManager2.encrypt(password);
-        // opening Transaction2
+        // opening Transaction
         firstAccount2.history.add(new Transaction2(Bank2.nextTxnID++, 10000, TransactionType2.OPENING, firstAccount2.balance, ""));
     }
 
@@ -41,14 +41,14 @@ class Customer2 {
     void deposit(Account2 acc,float amt){
         if(mustChangePwd){ System.out.println("Please change your password first."); return; }
         try {
-            // Step 1: Update the balance in the account table
+            //#1 Update the balance in the account table
             String updateBalance = "UPDATE account SET balance = balance + ? WHERE acc_no = ?";
             PreparedStatement pstmtUpdate = Bank2.conn.prepareStatement(updateBalance);
             pstmtUpdate.setFloat(1, amt);
             pstmtUpdate.setInt(2, acc.accNo);
             pstmtUpdate.executeUpdate();
 
-            // Step 2: Get the newly updated balance value for the transaction log
+            //#2 Get the newly updated balance value for the transaction log
             String checkBalance = "SELECT balance FROM account WHERE acc_no = ?";
             PreparedStatement pstmtCheck = Bank2.conn.prepareStatement(checkBalance);
             pstmtCheck.setInt(1, acc.accNo);
@@ -58,7 +58,7 @@ class Customer2 {
                 currentBalance = rs.getFloat("balance");
             }
 
-            // Step 3: Insert into transaction table
+            // #3 Insert into transaction table
             String logTxn = "INSERT INTO transaction (acc_no, type, amt, balance_after, note) VALUES (?, 'DEPOSIT', ?, ?, '')";
             PreparedStatement pstmtLog = Bank2.conn.prepareStatement(logTxn);
             pstmtLog.setInt(1, acc.accNo);
@@ -68,7 +68,7 @@ class Customer2 {
 
             txnCount++;
             
-            // Step 4: Sync the updated txn_count back to customer table
+            //#4 Sync the updated txn_count back to customer table
             String updateTxnCnt = "UPDATE customer SET txn_count = ? WHERE cus_id = ?";
             PreparedStatement pstmtCount = Bank2.conn.prepareStatement(updateTxnCnt);
             pstmtCount.setInt(1, txnCount);
@@ -142,17 +142,16 @@ class Customer2 {
     public void transfer(Account2 source, float amt, Account2 target) {
         if (mustChangePwd) { System.out.println("Please change your password first."); return; }
         
-        // 1. Check if source has enough money
         if (source.balance < amt) {
             System.out.println("Insufficient funds for transfer! Current balance: Rs " + source.balance);
             return;
         }
 
         try {
-            // Turn off Auto-Commit to ensure all updates succeed or fail together safely
+            // Turn off Auto-Commit to ensure all updates succeed or fail together safely, prevent inconsistency
             Bank2.conn.setAutoCommit(false);
 
-            // ---- STEP 1: DEBIT FROM SOURCE ----
+            // debit from
             String debitQuery = "UPDATE account SET balance = balance - ? WHERE acc_no = ?";
             try (PreparedStatement pstmtDebit = Bank2.conn.prepareStatement(debitQuery)) {
                 pstmtDebit.setFloat(1, amt);
@@ -160,7 +159,7 @@ class Customer2 {
                 pstmtDebit.executeUpdate();
             }
 
-            // ---- STEP 2: CREDIT TO TARGET ----
+            // credit to
             String creditQuery = "UPDATE account SET balance = balance + ? WHERE acc_no = ?";
             try (PreparedStatement pstmtCredit = Bank2.conn.prepareStatement(creditQuery)) {
                 pstmtCredit.setFloat(1, amt);
@@ -168,7 +167,7 @@ class Customer2 {
                 pstmtCredit.executeUpdate();
             }
 
-            // ---- STEP 3: FETCH NEW BALANCES FOR AUDITING LOGS ----
+            // new balance after the transaction
             float sourceNewBal = 0, targetNewBal = 0;
             String checkBal = "SELECT acc_no, balance FROM account WHERE acc_no IN (?, ?)";
             try (PreparedStatement pstmtCheck = Bank2.conn.prepareStatement(checkBal)) {
@@ -182,7 +181,7 @@ class Customer2 {
                 }
             }
 
-            // ---- STEP 4: LOG THE SENDER'S TRANSACTION (TRANSFER_OUT) ----
+            // log transaction_out
             String logOut = "INSERT INTO transaction (acc_no, type, amt, balance_after, note) VALUES (?, 'TRANSFER_OUT', ?, ?, ?)";
             try (PreparedStatement pstmtLogOut = Bank2.conn.prepareStatement(logOut)) {
                 pstmtLogOut.setInt(1, source.accNo);
@@ -192,7 +191,7 @@ class Customer2 {
                 pstmtLogOut.executeUpdate();
             }
 
-            // ---- STEP 5: LOG THE RECEIVER'S TRANSACTION (TRANSFER_IN) ----
+            // log transaction_in
             String logIn = "INSERT INTO transaction (acc_no, type, amt, balance_after, note) VALUES (?, 'TRANSFER_IN', ?, ?, ?)";
             try (PreparedStatement pstmtLogIn = Bank2.conn.prepareStatement(logIn)) {
                 pstmtLogIn.setInt(1, target.accNo);
@@ -206,7 +205,7 @@ class Customer2 {
             source.balance = sourceNewBal;
             txnCount++;
 
-            // ---- STEP 6: UPDATE CUSTOMER TRANSACTION COUNTER ----
+            // update txn count for customer
             String updateTxnCnt = "UPDATE customer SET txn_count = ? WHERE cus_id = ?";
             try (PreparedStatement pstmtCount = Bank2.conn.prepareStatement(updateTxnCnt)) {
                 pstmtCount.setInt(1, txnCount);
@@ -250,7 +249,7 @@ class Customer2 {
 
     void checkMaintenanceFee(Account2 acc, ArrayList<Customer2> topN){
         try {
-            // 1. Query the database to count the total transactions for this specific account
+            // Query the database to count the total transactions for this specific account
             String countQuery = "SELECT COUNT(*) FROM transaction WHERE acc_no = ?";
             int totalTxns = 0;
             try (PreparedStatement pstmtCount = Bank2.conn.prepareStatement(countQuery)) {
@@ -262,7 +261,7 @@ class Customer2 {
                 }
             }
 
-            // 2. Trigger the maintenance fee check if transaction volume exceeds 10 entries
+            // maintenance fee check if transaction exceeds 10 entries
             if (totalTxns > 10) {
                 boolean isTop = false;
                 if (topN != null) {
