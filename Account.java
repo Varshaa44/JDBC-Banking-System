@@ -1,17 +1,17 @@
 import java.util.ArrayList;
 
-class Account2 {
+class Account {
     int accNo;
     float balance = 10000;
-    ArrayList<Transaction2> history = new ArrayList<>();
+    ArrayList<Transaction> history = new ArrayList<>();
 
-    Account2(int accNo){
+    Account(int accNo){
         this.accNo = accNo;
     }
 
     synchronized void deposit(float amt){
         balance += amt;
-        history.add(new Transaction2(Bank2.nextTxnID++, amt, TransactionType2.DEPOSIT, balance, ""));
+        history.add(new Transaction(Bank.nextTxnID++, amt, TransactionType.DEPOSIT, balance, ""));
     }
 
     synchronized boolean withdraw(float amt){
@@ -20,22 +20,22 @@ class Account2 {
             return false;
         }
         balance -= amt;
-        history.add(new Transaction2(Bank2.nextTxnID++, amt, TransactionType2.WITHDRAWAL, balance, ""));
+        history.add(new Transaction(Bank.nextTxnID++, amt, TransactionType.WITHDRAWAL, balance, ""));
         return true;
     }
 
-    synchronized boolean transfer(float amt, Account2 target){
+    synchronized boolean transfer(float amt, Account target){
         if(balance - amt < 1000){
             System.out.println("Minimum balance of 1000 must be maintained.");
             return false;
         }
         balance -= amt;
         target.balance += amt;
-        history.add(new Transaction2(Bank2.nextTxnID++, amt, TransactionType2.TRANSFER_OUT, balance, "to acc "+ target.accNo));
-        target.history.add(new Transaction2(Bank2.nextTxnID++, amt, TransactionType2.TRANSFER_IN, target.balance, "from acc "+ accNo));
+        history.add(new Transaction(Bank.nextTxnID++, amt, TransactionType.TRANSFER_OUT, balance, "to acc "+ target.accNo));
+        target.history.add(new Transaction(Bank.nextTxnID++, amt, TransactionType.TRANSFER_IN, target.balance, "from acc "+ accNo));
         if(amt > 5000){
             balance -= 10;
-            history.add(new Transaction2(Bank2.nextTxnID++, 10, TransactionType2.OPERATION_FEE, balance,""));
+            history.add(new Transaction(Bank.nextTxnID++, 10, TransactionType.OPERATION_FEE, balance,""));
         }
         return true;
     }
@@ -45,7 +45,7 @@ class Account2 {
         System.out.println("-------------------------------------------------------");
         
         String query = "SELECT txn_id, type, amt, balance_after, note FROM transaction WHERE acc_no = ? ORDER BY txn_id ASC";
-        try (java.sql.PreparedStatement pstmt = Bank2.conn.prepareStatement(query)) {
+        try (java.sql.PreparedStatement pstmt = Bank.conn.prepareStatement(query)) {
             pstmt.setInt(1, this.accNo);
             java.sql.ResultSet rs = pstmt.executeQuery();
             

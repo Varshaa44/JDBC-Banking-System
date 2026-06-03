@@ -1,5 +1,5 @@
-CREATE DATABASE BANK;
-use BANK;
+CREATE DATABASE JDBC_BANK_SYSTEM;
+USE JDBC_BANK_SYSTEM;
 
 -- CUSTOMER TABLE
 CREATE TABLE customer (
@@ -55,6 +55,8 @@ CREATE TABLE login_log (
     status VARCHAR(10), -- Will store 'SUCCESS' or 'FAILED'
     FOREIGN KEY (cus_id) REFERENCES customer(cus_id)
 );
+
+-- Use these to view tables after execution
 select * from customer;
 select * from login_log;
 select * from transaction;
@@ -62,6 +64,7 @@ select * from pwdhistory;
 select * from account;
 show tables from BANK;
 
+-- Use these to clear out data and start program from scratch
 SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE login_log;
 TRUNCATE TABLE transaction;

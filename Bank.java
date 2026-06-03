@@ -7,16 +7,16 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-class Bank2 {
+class Bank {
     static Connection conn;
     static int nextTxnID = 1;
-    ArrayList<Customer2> Customers = new ArrayList<>();
+    ArrayList<Customer> Customers = new ArrayList<>();
     int nextCusID = 1;
     int nextAccNo = 1001;
     Scanner sc = new Scanner(System.in);
 
     void connectToDatabase() {
-        String url = "jdbc:mysql://localhost:3306/BANK";
+        String url = "jdbc:mysql://localhost:3306/JDBC_BANK_SYSTEM";
         String user = null;
         String password = null;
 
@@ -46,7 +46,7 @@ class Bank2 {
         }
 
         try {
-            Bank2.conn = DriverManager.getConnection(url, user, password);
+            Bank.conn = DriverManager.getConnection(url, user, password);
             System.out.println("Connected to BANK database successfully.");
         } catch (SQLException e) {
             System.out.println("Database connection failed! Verify your MySQL Server is running.");
@@ -54,17 +54,40 @@ class Bank2 {
         }
     }
 
-    void addCustomer2(){
+    void addCustomer(){
         System.out.print("Enter name: ");
         String name = sc.nextLine();
-        System.out.print("Enter password: ");
-        String password = sc.nextLine();
-        if(!PasswordManager2.pwdComplexity(password)){
+        
+        String password = "";
+        java.io.Console console = System.console();
+        
+        if (console != null) {
+            System.out.print("Enter password (typing will be hidden): ");
+            char[] passwordChars = console.readPassword();
+            password = new String(passwordChars);
+        } else {
+            System.out.print("Enter password: ");
+            password = sc.nextLine();
+        }
+
+        System.out.print("Do you want to view the password to double-check? (y/n): ");
+        String choice = sc.nextLine().trim().toLowerCase();
+        if (choice.equals("y") || choice.equals("yes")) {
+            System.out.println("~ Your password is: " + password);
+            System.out.print("Proceed with this password? (y/n): ");
+            String confirm = sc.nextLine().trim().toLowerCase();
+            if (!confirm.equals("y") && !confirm.equals("yes")) {
+                System.out.println("Registration failed. Try again.");
+                return;
+            }
+        }
+
+        if(!PasswordManager.pwdComplexity(password)){
             System.out.println("Password does not meet complexity requirements.");
             System.out.println("Need: 6+ chars, 2 uppercase, 2 lowercase, 2 digits.");
             return;
         }
-        String encryptedPassword = PasswordManager2.encrypt(password);
+        String encryptedPassword = PasswordManager.encrypt(password);
 
         try {
             // 1. Insert customer details
@@ -136,27 +159,27 @@ class Bank2 {
         }
     }
 
-    // Customer2 findCustomer2(int cusID){
-    //     for(Customer2 c : Customers){
+    // Customer findCustomer(int cusID){
+    //     for(Customer c : Customers){
     //         if(c.cusID == cusID) return c;
     //     }
     //     System.out.println("Customer not found.");
     //     return null;
     // } 
 
-    ArrayList<Customer2> topN(int n){
-        ArrayList<Customer2> sorted = new ArrayList<>(Customers);
+    ArrayList<Customer> topN(int n){
+        ArrayList<Customer> sorted = new ArrayList<>(Customers);
         sorted.sort((a, b) -> {
             float maxA=0, maxB=0;
-            for(Account2 acc : a.accounts) if(acc.balance > maxA) maxA = acc.balance;
-            for(Account2 acc : b.accounts) if(acc.balance > maxB) maxB = acc.balance;
+            for(Account acc : a.accounts) if(acc.balance > maxA) maxA = acc.balance;
+            for(Account acc : b.accounts) if(acc.balance > maxB) maxB = acc.balance;
             return Float.compare(maxB, maxA);
         });
         int limit = Math.min(n, sorted.size());
         return new ArrayList<>(sorted.subList(0, limit));
     }
 
-    Account2 findAccount2(int accNo){
+    Account findAccount(int accNo){
         String query = "SELECT acc_no, balance FROM account WHERE acc_no = ?";
         try (PreparedStatement pstmt = conn.prepareStatement(query)) {
             pstmt.setInt(1, accNo);
@@ -164,7 +187,7 @@ class Bank2 {
             
             if (rs.next()) {
                 // Return a temporary structural wrapper holding the core parameters
-                Account2 a = new Account2(rs.getInt("acc_no"));
+                Account a = new Account(rs.getInt("acc_no"));
                 a.balance = rs.getFloat("balance");
                 return a;
             }
@@ -175,8 +198,8 @@ class Bank2 {
         return null;
     }
 
-    Account2 selectAccount2(Customer2 c){
-        ArrayList<Account2> dbAccounts = new ArrayList<>();
+    Account selectAccount(Customer c){
+        ArrayList<Account> dbAccounts = new ArrayList<>();
         
         // 1. Fetch all accounts belonging to this customer from the database
         String query = "SELECT acc_no, balance FROM account WHERE cus_id = ?";
@@ -185,7 +208,7 @@ class Bank2 {
             ResultSet rs = pstmt.executeQuery();
             
             while (rs.next()) {
-                Account2 a = new Account2(rs.getInt("acc_no"));
+                Account a = new Account(rs.getInt("acc_no"));
                 a.balance = rs.getFloat("balance");
                 dbAccounts.add(a);
             }
@@ -208,7 +231,7 @@ class Bank2 {
         
         // 4. If they have multiple accounts, display them and let them choose
         System.out.println("Your Accounts:");
-        for (Account2 a : dbAccounts) {
+        for (Account a : dbAccounts) {
             System.out.println(" " + a.accNo + " - Rs " + a.balance);
         }
         
@@ -216,7 +239,7 @@ class Bank2 {
         int selectedNo = Integer.parseInt(sc.nextLine());
         
         // Find and return the matching account from our temporary database list
-        for (Account2 a : dbAccounts) {
+        for (Account a : dbAccounts) {
             if (a.accNo == selectedNo) {
                 return a;
             }
@@ -229,24 +252,24 @@ class Bank2 {
     void printTopN(){
         System.out.print("Enter N: ");
         int n = Integer.parseInt(sc.nextLine());
-        ArrayList<Customer2> top = topN(n);
+        ArrayList<Customer> top = topN(n);
         System.out.println("Top " + n + " Customers:");
         System.out.println("ID\tName\tAccount\tBalance");
         System.out.println("--------------------------------------------");
-        for(Customer2 c : top){
-            for(Account2 a:c.accounts){
+        for(Customer c : top){
+            for(Account a:c.accounts){
                 System.out.println(c.cusID + "\t" + c.name + "\t" + a.accNo + "\t\tRs" + a.balance);
             }
         }
     }
 
-    Customer2 loginMenu(){
+    Customer loginMenu(){
         System.out.print("Enter Customer ID: ");
         int id = Integer.parseInt(sc.nextLine());
         System.out.print("Enter Password: ");
         String pwd = sc.nextLine();
         
-        String encryptedInput = PasswordManager2.encrypt(pwd);
+        String encryptedInput = PasswordManager.encrypt(pwd);
         String query = "SELECT * FROM customer WHERE cus_id = ?";
         
         try {
@@ -266,7 +289,7 @@ class Bank2 {
                     logPstmt.setInt(1, id);
                     logPstmt.executeUpdate();
                     
-                    Customer2 c = new Customer2(id, customerName, pwd);
+                    Customer c = new Customer(id, customerName, pwd);
                     c.mustChangePwd = rs.getBoolean("must_change_pwd");
                     c.txnCount = rs.getInt("txn_count");
                     return c;
@@ -283,7 +306,7 @@ class Bank2 {
         }
     }
 
-    void Transaction2Menu(Customer2 c){
+    void TransactionMenu(Customer c){
         while(true){
             System.out.println("\n-- Transactions --");
             System.out.println("1. Deposit");
@@ -293,14 +316,15 @@ class Bank2 {
             System.out.println("5. View details");
             System.out.println("6. Change password");
             System.out.println("7. Add new Account");
-            System.out.println("8. Logout");
+            System.out.println("8. Talk to AI Chatbot!");
+            System.out.println("9. Logout");
             System.out.print("Choice: ");
             String choice = sc.nextLine();
 
             if(choice.equals("1")){
                 System.out.print("Enter Account Number to deposit into: ");
                 int accNo = Integer.parseInt(sc.nextLine());
-                Account2 activeAcc = findAccount2(accNo); // Fetches your account details from DB
+                Account activeAcc = findAccount(accNo); // Fetches your account details from DB
     
                 if (activeAcc != null) {
                     System.out.print("Amount: ");
@@ -310,7 +334,7 @@ class Bank2 {
             } else if (choice.equals("2")) {
                 System.out.print("Enter Account Number to withdraw from: ");
                 int accNo = Integer.parseInt(sc.nextLine());
-                Account2 activeAcc = findAccount2(accNo); // Fetches live database balance snapshot
+                Account activeAcc = findAccount(accNo); // Fetches live database balance snapshot
     
                 if (activeAcc != null) {
                     System.out.print("Amount: ");
@@ -318,11 +342,11 @@ class Bank2 {
                     c.withdraw(activeAcc, amount); // Runs our brand new DB method!
                 }
             } else if(choice.equals("3")){
-                Account2 acc = selectAccount2(c);
+                Account acc = selectAccount(c);
                 if(acc == null) continue;
                 System.out.print("Target Account No: ");
                 int targetAccNo = Integer.parseInt(sc.nextLine());
-                Account2 target = findAccount2(targetAccNo);
+                Account target = findAccount(targetAccNo);
                 if(target == null){
                     System.out.println("Account not found."); 
                     continue; 
@@ -334,7 +358,7 @@ class Bank2 {
             } else if (choice.equals("4")) {
                 System.out.print("Enter Account Number to view history: ");
                 int accNo = Integer.parseInt(sc.nextLine());
-                Account2 activeAcc = findAccount2(accNo);
+                Account activeAcc = findAccount(accNo);
     
                 if (activeAcc != null) {
                     activeAcc.printHistory(); // Executes the query from our previous step!
@@ -358,9 +382,12 @@ class Bank2 {
                 System.out.println("New Account added - " + c.cusID);
 
             } else if(choice.equals("8")){
+                OllamaBankBot bot = new OllamaBankBot(this); //calls ollamabot constructor
+                bot.startChatSession(c);
+
+            } else if(choice.equals("9")){
                 System.out.println("Logged out.");
-                break;
-                
+                break;  
             } else {
                 System.out.println("Invalid choice.");
             }
@@ -378,10 +405,10 @@ class Bank2 {
             String choice = sc.nextLine();
 
             if(choice.equals("1")){
-                addCustomer2();
+                addCustomer();
             } else if(choice.equals("2")){
-                Customer2 c = loginMenu();
-                if(c != null) Transaction2Menu(c);
+                Customer c = loginMenu();
+                if(c != null) TransactionMenu(c);
             } else if(choice.equals("3")){
                 printTopN();
             } else if(choice.equals("4")){
@@ -394,8 +421,11 @@ class Bank2 {
     }
 
     public static void main(String[] args){
-        Bank2 Bank2 = new Bank2();
-        Bank2.connectToDatabase();
-        Bank2.mainMenu();
+        Bank Bank = new Bank(); // ollama run qwen3.5:4b2 in cmd prompt before executing this main method 
+        // //currently using qwen2.5:3b cuz my laptops slow ;-;
+        Bank.connectToDatabase();
+        Bank.mainMenu();
     }
 }
+
+//ps: this is a starter project and command-line output of "tables" might be clumsy, rest is good :D

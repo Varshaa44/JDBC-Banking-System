@@ -1,4 +1,4 @@
-enum TransactionType2 {
+enum TransactionType {
     OPENING,
     DEPOSIT,
     WITHDRAWAL,

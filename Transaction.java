@@ -1,11 +1,11 @@
-public class Transaction2 {
+public class Transaction {
     int txnID;
     float amount;
-    TransactionType2 type;
+    TransactionType type;
     float balance;
     String note;
 
-    Transaction2(int txnID, float amount, TransactionType2 type, float balance, String note){
+    Transaction(int txnID, float amount, TransactionType type, float balance, String note){
         this.txnID = txnID;
         this.amount = amount;
         this.type = type;

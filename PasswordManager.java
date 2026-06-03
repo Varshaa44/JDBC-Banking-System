@@ -1,4 +1,4 @@
-class PasswordManager2 {
+class PasswordManager {
     String encryptedPwd;
     String[] pwdHistory = new String[3];
 
@@ -60,7 +60,7 @@ class PasswordManager2 {
         try {
             // 1. Check if the password was recently used (Java logic matching pwdReused)
             String historyCheck = "SELECT COUNT(*) FROM pwdhistory WHERE cus_id = ? AND encrypt_pwd = ?";
-            try (java.sql.PreparedStatement pstmtCheck = Bank2.conn.prepareStatement(historyCheck)) {
+            try (java.sql.PreparedStatement pstmtCheck = Bank.conn.prepareStatement(historyCheck)) {
                 pstmtCheck.setInt(1, cusId);
                 pstmtCheck.setString(2, encNew);
                 java.sql.ResultSet rs = pstmtCheck.executeQuery();
@@ -72,7 +72,7 @@ class PasswordManager2 {
 
             // 2. Archive the current active password into the history table before overwriting it
             String archiveQuery = "INSERT INTO pwdhistory (cus_id, encrypt_pwd, slot) VALUES (?, ?, 1)";
-            try (java.sql.PreparedStatement pstmtArchive = Bank2.conn.prepareStatement(archiveQuery)) {
+            try (java.sql.PreparedStatement pstmtArchive = Bank.conn.prepareStatement(archiveQuery)) {
                 pstmtArchive.setInt(1, cusId);
                 pstmtArchive.setString(2, this.encryptedPwd); // Saves current hash to history
                 pstmtArchive.executeUpdate();
@@ -81,7 +81,7 @@ class PasswordManager2 {
             // 3. Keep only the last 3 password changes (Cleans up older rows so it doesn't grow forever)
             String cleanupQuery = "DELETE FROM pwdhistory WHERE cus_id = ? AND id NOT IN " +
                                   "(SELECT id FROM (SELECT id FROM pwdhistory WHERE cus_id = ? ORDER BY id DESC LIMIT 3) AS tmp)";
-            try (java.sql.PreparedStatement pstmtClean = Bank2.conn.prepareStatement(cleanupQuery)) {
+            try (java.sql.PreparedStatement pstmtClean = Bank.conn.prepareStatement(cleanupQuery)) {
                 pstmtClean.setInt(1, cusId);
                 pstmtClean.setInt(2, cusId);
                 pstmtClean.executeUpdate();
@@ -89,7 +89,7 @@ class PasswordManager2 {
 
             // 4. Update the master customer table with the new password hash
             String updateMaster = "UPDATE customer SET encrypted_pwd = ?, must_change_pwd = FALSE WHERE cus_id = ?";
-            try (java.sql.PreparedStatement pstmtMaster = Bank2.conn.prepareStatement(updateMaster)) {
+            try (java.sql.PreparedStatement pstmtMaster = Bank.conn.prepareStatement(updateMaster)) {
                 pstmtMaster.setString(1, encNew);
                 pstmtMaster.setInt(2, cusId);
                 pstmtMaster.executeUpdate();

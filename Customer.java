@@ -3,27 +3,27 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-class Customer2 {
+class Customer {
     int cusID;
     String name;
-    ArrayList<Account2> accounts = new ArrayList<>();
-    PasswordManager2 pwdManager;
+    ArrayList<Account> accounts = new ArrayList<>();
+    PasswordManager pwdManager;
     int txnCount = 0;
-    boolean mustChangePwd = false; // false = Transactionss allowed, true = must change password before next txn
+    boolean mustChangePwd = false; // false = Transactions allowed, true = must change password before next txn
 
-    Customer2(int cusID, String name, String password){
+    Customer(int cusID, String name, String password){
         this.cusID = cusID;
         this.name = name;
-        Account2 firstAccount2 = new Account2(1000 + cusID);
-        accounts.add(firstAccount2);
-        this.pwdManager = new PasswordManager2();
-        this.pwdManager.encryptedPwd = PasswordManager2.encrypt(password);
+        Account firstAccount = new Account(1000 + cusID);
+        accounts.add(firstAccount);
+        this.pwdManager = new PasswordManager();
+        this.pwdManager.encryptedPwd = PasswordManager.encrypt(password);
         // opening Transaction
-        firstAccount2.history.add(new Transaction2(Bank2.nextTxnID++, 10000, TransactionType2.OPENING, firstAccount2.balance, ""));
+        firstAccount.history.add(new Transaction(Bank.nextTxnID++, 10000, TransactionType.OPENING, firstAccount.balance, ""));
     }
 
-    Account2 getAccount2(int accNo){
-        for(Account2 a : accounts){
+    Account getAccount(int accNo){
+        for(Account a : accounts){
           if(a.accNo == accNo) return a;
         }
         return null;
@@ -38,19 +38,19 @@ class Customer2 {
         return false;
     }
 
-    void deposit(Account2 acc,float amt){
+    void deposit(Account acc,float amt){
         if(mustChangePwd){ System.out.println("Please change your password first."); return; }
         try {
-            //#1 Update the balance in the account table
+            // Step 1: Update the balance in the account table
             String updateBalance = "UPDATE account SET balance = balance + ? WHERE acc_no = ?";
-            PreparedStatement pstmtUpdate = Bank2.conn.prepareStatement(updateBalance);
+            PreparedStatement pstmtUpdate = Bank.conn.prepareStatement(updateBalance);
             pstmtUpdate.setFloat(1, amt);
             pstmtUpdate.setInt(2, acc.accNo);
             pstmtUpdate.executeUpdate();
 
-            //#2 Get the newly updated balance value for the transaction log
+            // Step 2: Get the newly updated balance value for the transaction log
             String checkBalance = "SELECT balance FROM account WHERE acc_no = ?";
-            PreparedStatement pstmtCheck = Bank2.conn.prepareStatement(checkBalance);
+            PreparedStatement pstmtCheck = Bank.conn.prepareStatement(checkBalance);
             pstmtCheck.setInt(1, acc.accNo);
             ResultSet rs = pstmtCheck.executeQuery();
             float currentBalance = 0;
@@ -58,9 +58,9 @@ class Customer2 {
                 currentBalance = rs.getFloat("balance");
             }
 
-            // #3 Insert into transaction table
-            String logTxn = "INSERT INTO transaction (acc_no, type, amt, balance_after, note) VALUES (?, 'DEPOSIT', ?, ?, '')";
-            PreparedStatement pstmtLog = Bank2.conn.prepareStatement(logTxn);
+            // Step 3: Insert into transaction table
+            String logTxn = "INSERT INTO transaction (acc_no, type, amt, balance_after, note) VALUES (?, 'DEPOSIT', ?, ?, 'Cash Deposit')";
+            PreparedStatement pstmtLog = Bank.conn.prepareStatement(logTxn);
             pstmtLog.setInt(1, acc.accNo);
             pstmtLog.setFloat(2, amt);
             pstmtLog.setFloat(3, currentBalance);
@@ -68,9 +68,9 @@ class Customer2 {
 
             txnCount++;
             
-            //#4 Sync the updated txn_count back to customer table
+            // Step 4: Sync the updated txn_count back to customer table
             String updateTxnCnt = "UPDATE customer SET txn_count = ? WHERE cus_id = ?";
-            PreparedStatement pstmtCount = Bank2.conn.prepareStatement(updateTxnCnt);
+            PreparedStatement pstmtCount = Bank.conn.prepareStatement(updateTxnCnt);
             pstmtCount.setInt(1, txnCount);
             pstmtCount.setInt(2, this.cusID);
             pstmtCount.executeUpdate();
@@ -84,7 +84,7 @@ class Customer2 {
         }
     }
 
-    void withdraw(Account2 acc, float amt) {
+    void withdraw(Account acc, float amt) {
         if (mustChangePwd) { System.out.println("Please change your password first."); return; }
 
         // Step 1: Check if the account has enough money first
@@ -96,14 +96,14 @@ class Customer2 {
         try {
             // Step 2: Deduct money from the database balance column
             String updateBalance = "UPDATE account SET balance = balance - ? WHERE acc_no = ?";
-            java.sql.PreparedStatement pstmtUpdate = Bank2.conn.prepareStatement(updateBalance);
+            java.sql.PreparedStatement pstmtUpdate = Bank.conn.prepareStatement(updateBalance);
             pstmtUpdate.setFloat(1, amt);
             pstmtUpdate.setInt(2, acc.accNo);
             pstmtUpdate.executeUpdate();
 
             // Step 3: Fetch the newly updated balance value for accuracy
             String checkBalance = "SELECT balance FROM account WHERE acc_no = ?";
-            java.sql.PreparedStatement pstmtCheck = Bank2.conn.prepareStatement(checkBalance);
+            java.sql.PreparedStatement pstmtCheck = Bank.conn.prepareStatement(checkBalance);
             pstmtCheck.setInt(1, acc.accNo);
             java.sql.ResultSet rs = pstmtCheck.executeQuery();
             float currentBalance = 0;
@@ -113,7 +113,7 @@ class Customer2 {
 
             // Step 4: Write the WITHDRAWAL record straight to your transaction table
             String logTxn = "INSERT INTO transaction (acc_no, type, amt, balance_after, note) VALUES (?, 'WITHDRAWAL', ?, ?, 'Cash Withdrawal')";
-            java.sql.PreparedStatement pstmtLog = Bank2.conn.prepareStatement(logTxn);
+            java.sql.PreparedStatement pstmtLog = Bank.conn.prepareStatement(logTxn);
             pstmtLog.setInt(1, acc.accNo);
             pstmtLog.setFloat(2, amt);
             pstmtLog.setFloat(3, currentBalance);
@@ -125,7 +125,7 @@ class Customer2 {
             
             // Sync transaction counter for the password rules
             String updateTxnCnt = "UPDATE customer SET txn_count = ? WHERE cus_id = ?";
-            java.sql.PreparedStatement pstmtCount = Bank2.conn.prepareStatement(updateTxnCnt);
+            java.sql.PreparedStatement pstmtCount = Bank.conn.prepareStatement(updateTxnCnt);
             pstmtCount.setInt(1, txnCount);
             pstmtCount.setInt(2, this.cusID);
             pstmtCount.executeUpdate();
@@ -139,38 +139,39 @@ class Customer2 {
         }
     }
 
-    public void transfer(Account2 source, float amt, Account2 target) {
+    public void transfer(Account source, float amt, Account target) {
         if (mustChangePwd) { System.out.println("Please change your password first."); return; }
         
+        // 1. Check if source has enough money
         if (source.balance < amt) {
             System.out.println("Insufficient funds for transfer! Current balance: Rs " + source.balance);
             return;
         }
 
         try {
-            // Turn off Auto-Commit to ensure all updates succeed or fail together safely, prevent inconsistency
-            Bank2.conn.setAutoCommit(false);
+            // Turn off Auto-Commit to ensure all updates succeed or fail together safely
+            Bank.conn.setAutoCommit(false);
 
-            // debit from
+            // ---- STEP 1: DEBIT FROM SOURCE ----
             String debitQuery = "UPDATE account SET balance = balance - ? WHERE acc_no = ?";
-            try (PreparedStatement pstmtDebit = Bank2.conn.prepareStatement(debitQuery)) {
+            try (PreparedStatement pstmtDebit = Bank.conn.prepareStatement(debitQuery)) {
                 pstmtDebit.setFloat(1, amt);
                 pstmtDebit.setInt(2, source.accNo);
                 pstmtDebit.executeUpdate();
             }
 
-            // credit to
+            // ---- STEP 2: CREDIT TO TARGET ----
             String creditQuery = "UPDATE account SET balance = balance + ? WHERE acc_no = ?";
-            try (PreparedStatement pstmtCredit = Bank2.conn.prepareStatement(creditQuery)) {
+            try (PreparedStatement pstmtCredit = Bank.conn.prepareStatement(creditQuery)) {
                 pstmtCredit.setFloat(1, amt);
                 pstmtCredit.setInt(2, target.accNo);
                 pstmtCredit.executeUpdate();
             }
 
-            // new balance after the transaction
+            // ---- STEP 3: FETCH NEW BALANCES FOR AUDITING LOGS ----
             float sourceNewBal = 0, targetNewBal = 0;
             String checkBal = "SELECT acc_no, balance FROM account WHERE acc_no IN (?, ?)";
-            try (PreparedStatement pstmtCheck = Bank2.conn.prepareStatement(checkBal)) {
+            try (PreparedStatement pstmtCheck = Bank.conn.prepareStatement(checkBal)) {
                 pstmtCheck.setInt(1, source.accNo);
                 pstmtCheck.setInt(2, target.accNo);
                 try (ResultSet rs = pstmtCheck.executeQuery()) {
@@ -181,9 +182,9 @@ class Customer2 {
                 }
             }
 
-            // log transaction_out
+            // ---- STEP 4: LOG THE SENDER'S TRANSACTION (TRANSFER_OUT) ----
             String logOut = "INSERT INTO transaction (acc_no, type, amt, balance_after, note) VALUES (?, 'TRANSFER_OUT', ?, ?, ?)";
-            try (PreparedStatement pstmtLogOut = Bank2.conn.prepareStatement(logOut)) {
+            try (PreparedStatement pstmtLogOut = Bank.conn.prepareStatement(logOut)) {
                 pstmtLogOut.setInt(1, source.accNo);
                 pstmtLogOut.setFloat(2, amt);
                 pstmtLogOut.setFloat(3, sourceNewBal);
@@ -191,9 +192,9 @@ class Customer2 {
                 pstmtLogOut.executeUpdate();
             }
 
-            // log transaction_in
+            // ---- STEP 5: LOG THE RECEIVER'S TRANSACTION (TRANSFER_IN) ----
             String logIn = "INSERT INTO transaction (acc_no, type, amt, balance_after, note) VALUES (?, 'TRANSFER_IN', ?, ?, ?)";
-            try (PreparedStatement pstmtLogIn = Bank2.conn.prepareStatement(logIn)) {
+            try (PreparedStatement pstmtLogIn = Bank.conn.prepareStatement(logIn)) {
                 pstmtLogIn.setInt(1, target.accNo);
                 pstmtLogIn.setFloat(2, amt);
                 pstmtLogIn.setFloat(3, targetNewBal);
@@ -205,30 +206,30 @@ class Customer2 {
             source.balance = sourceNewBal;
             txnCount++;
 
-            // update txn count for customer
+            // ---- STEP 6: UPDATE CUSTOMER TRANSACTION COUNTER ----
             String updateTxnCnt = "UPDATE customer SET txn_count = ? WHERE cus_id = ?";
-            try (PreparedStatement pstmtCount = Bank2.conn.prepareStatement(updateTxnCnt)) {
+            try (PreparedStatement pstmtCount = Bank.conn.prepareStatement(updateTxnCnt)) {
                 pstmtCount.setInt(1, txnCount);
                 pstmtCount.setInt(2, this.cusID);
                 pstmtCount.executeUpdate();
             }
 
             // Commit the entire pipeline successfully to your drive
-            Bank2.conn.commit();
+            Bank.conn.commit();
             System.out.println("Transfer of Rs " + amt + " to Account " + target.accNo + " processed successfully!");
             
             checkForcePasswordChange();
 
         } catch (SQLException e) {
             try {
-                Bank2.conn.rollback(); // Undo everything if any query fails mid-execution
+                Bank.conn.rollback(); // Undo everything if any query fails mid-execution
                 System.out.println("Transfer failed! System changes rolled back safely.");
             } catch (SQLException ex) {
                 ex.printStackTrace();
             }
             e.printStackTrace();
         } finally {
-            try { Bank2.conn.setAutoCommit(true); } catch (SQLException e) { e.printStackTrace(); }
+            try { Bank.conn.setAutoCommit(true); } catch (SQLException e) { e.printStackTrace(); }
         }
     }
 
@@ -238,7 +239,7 @@ class Customer2 {
             mustChangePwd = true;
             try {
                 String query = "UPDATE customer SET must_change_pwd = TRUE WHERE cus_id = ?";
-                PreparedStatement pstmt = Bank2.conn.prepareStatement(query);
+                PreparedStatement pstmt = Bank.conn.prepareStatement(query);
                 pstmt.setInt(1, this.cusID);
                 pstmt.executeUpdate();
             } catch (SQLException e) {
@@ -247,12 +248,12 @@ class Customer2 {
         }
     }
 
-    void checkMaintenanceFee(Account2 acc, ArrayList<Customer2> topN){
+    void checkMaintenanceFee(Account acc, ArrayList<Customer> topN){
         try {
-            // Query the database to count the total transactions for this specific account
+            // 1. Query the database to count the total transactions for this specific account
             String countQuery = "SELECT COUNT(*) FROM transaction WHERE acc_no = ?";
             int totalTxns = 0;
-            try (PreparedStatement pstmtCount = Bank2.conn.prepareStatement(countQuery)) {
+            try (PreparedStatement pstmtCount = Bank.conn.prepareStatement(countQuery)) {
                 pstmtCount.setInt(1, acc.accNo);
                 try (ResultSet rs = pstmtCount.executeQuery()) {
                     if (rs.next()) {
@@ -261,11 +262,11 @@ class Customer2 {
                 }
             }
 
-            // maintenance fee check if transaction exceeds 10 entries
+            // 2. Trigger the maintenance fee check if transaction volume exceeds 10 entries
             if (totalTxns > 10) {
                 boolean isTop = false;
                 if (topN != null) {
-                    for (Customer2 c : topN) {
+                    for (Customer c : topN) {
                         if (c.cusID == this.cusID) { isTop = true; break; }
                     }
                 }
@@ -274,7 +275,7 @@ class Customer2 {
                 if (!isTop) {
                     // Update database balance column
                     String updateBal = "UPDATE account SET balance = balance - 100 WHERE acc_no = ?";
-                    try (PreparedStatement pstmtUpdate = Bank2.conn.prepareStatement(updateBal)) {
+                    try (PreparedStatement pstmtUpdate = Bank.conn.prepareStatement(updateBal)) {
                         pstmtUpdate.setInt(1, acc.accNo);
                         pstmtUpdate.executeUpdate();
                     }
@@ -282,7 +283,7 @@ class Customer2 {
                     // Get the fresh balance total for the logging snapshot
                     String getBal = "SELECT balance FROM account WHERE acc_no = ?";
                     float currentBalance = 0;
-                    try (PreparedStatement pstmtBal = Bank2.conn.prepareStatement(getBal)) {
+                    try (PreparedStatement pstmtBal = Bank.conn.prepareStatement(getBal)) {
                         pstmtBal.setInt(1, acc.accNo);
                         try (ResultSet rs = pstmtBal.executeQuery()) {
                             if (rs.next()) currentBalance = rs.getFloat("balance");
@@ -291,7 +292,7 @@ class Customer2 {
 
                     // Log the official transaction ledger entry row
                     String logFee = "INSERT INTO transaction (acc_no, type, amt, balance_after, note) VALUES (?, 'MAINTENANCE_FEE', 100, ?, 'Monthly Account Maintenance')";
-                    try (PreparedStatement pstmtLog = Bank2.conn.prepareStatement(logFee)) {
+                    try (PreparedStatement pstmtLog = Bank.conn.prepareStatement(logFee)) {
                         pstmtLog.setInt(1, acc.accNo);
                         pstmtLog.setFloat(2, currentBalance);
                         pstmtLog.executeUpdate();
@@ -313,7 +314,7 @@ class Customer2 {
         System.out.println("Name        : " + this.name);
         
         String query = "SELECT acc_no, balance FROM account WHERE cus_id = ?";
-        try (java.sql.PreparedStatement pstmt = Bank2.conn.prepareStatement(query)) {
+        try (java.sql.PreparedStatement pstmt = Bank.conn.prepareStatement(query)) {
             pstmt.setInt(1, this.cusID);
             java.sql.ResultSet rs = pstmt.executeQuery();
             
