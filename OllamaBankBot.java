@@ -10,12 +10,12 @@ import java.util.regex.Pattern;
 public class OllamaBankBot {
     private Bank bankEngine;
 
-    public OllamaBankBot(Bank bankEngine) {
+    public OllamaBankBot(Bank bankEngine) { //connects bot to og bank class
         this.bankEngine = bankEngine;
     }
 
     public void startChatSession(Customer loggedInCustomer) {
-        Scanner scanner = new Scanner(System.in);
+        Scanner scanner = new Scanner(System.in);//dont close, it will close entire system if mentioned inside chatbot loop or handler files
         System.out.println("\n[BankBot]: Hello " + loggedInCustomer.name + "! I'm your AI banking assistant. I can help you with deposits and withdrawals.");
         System.out.println("Ask me: 'Deposit 2000 into Account 1' or 'Withdraw Rs 500 from Account 2'.");
         System.out.println("Type 'exit' to return to the main transaction menu.");
@@ -29,8 +29,10 @@ public class OllamaBankBot {
                 break;
             }
 
-            // pass customer to queryOllama so it knows which accounts they own
+            //Send sentence to Ollama and get structured response
             String aiResponse = queryOllama(prompt, loggedInCustomer);
+            
+            //Parse the response and execute transactions
             parseAndExecute(loggedInCustomer, aiResponse);
         }
     }
@@ -43,12 +45,12 @@ public class OllamaBankBot {
                 sb.append(line).append("\n");
             }
         } catch (java.io.IOException e) {
+            // Safe fallback rule if the text file is missing
             return "Extract ACTION (deposit/withdraw), ACCOUNT number, and AMOUNT. Format: ACTION=x, ACCOUNT=y, AMOUNT=z";
         }
         return sb.toString();
     }
 
-    // updated signature — now accepts customer to build account context
     private String queryOllama(String userPrompt, Customer customer) {
         try {
             java.net.URL url = java.net.URI.create("http://localhost:11434/api/generate").toURL();
@@ -60,23 +62,9 @@ public class OllamaBankBot {
             conn.setReadTimeout(45000);
             String systemInstructions = loadInstructions();
 
-            // build account context so model knows which accounts this customer owns
-            StringBuilder accountContext = new StringBuilder();
-            accountContext.append("STRICT RULE: The logged in customer is " + customer.name + ". ");
-            accountContext.append("This customer ONLY owns these accounts: ");
-            for(Account a : customer.accounts){
-                accountContext.append("Account " + a.accNo + " (Balance: Rs " + a.balance + ") ");
-                
-            }
-            accountContext.append("You must NEVER use any account number that is not in this list. ");
-            accountContext.append("If the user says 'my history', 'show history', or does not specify an account, ");
-            accountContext.append("always default to account " + customer.accounts.get(0).accNo + ". ");
-            accountContext.append("Never use account 1001, 1002, 1003 or any account not listed above.");
-
             String jsonPayload = "{"
-                + "\"model\": \"qwen2.5:3b\","
+                + "\"model\": \"qwen2.5:3b\"," //change ur LLM version here
                 + "\"prompt\": \"" + systemInstructions.replace("\n", "\\n").replace("\"", "\\\"")
-                + "\\n\\nCustomer context: " + accountContext.toString().replace("\"", "\\\"")
                 + "\\n\\nUser prompt: " + userPrompt + "\","
                 + "\"stream\": false"
                 + "}";
@@ -109,32 +97,45 @@ public class OllamaBankBot {
                     .replace("\\n", " ")
                     .trim();
             }
-            return "";
+            return ""; 
         } catch (Exception e) {
             e.printStackTrace();
             return "ERROR: " + e.getMessage();
         }
     }
 
-    private void parseAndExecute(Customer customer, String aiOutput) {
+    //parsing is like tokens
+
+    private void parseAndExecute(Customer customer, String aiOutput) {  
         try {
             String cleanOutput = aiOutput.trim();
             cleanOutput = cleanOutput.replaceAll("\\s*\\n\\s*", " ").trim();
             cleanOutput = cleanOutput.replaceAll("```json", "").replaceAll("```", "").trim();
 
+            // Check if transaction related params were added in the response
             if (cleanOutput.contains("{")) {
+                
+                // Find where the JSON block starts and ends
                 int jsonStartIndex = cleanOutput.indexOf("{");
                 int jsonEndIndex = cleanOutput.lastIndexOf("}") + 1;
-
+                
+                // Separate the conversation from the raw data payload
                 String chatMessage = cleanOutput.substring(0, jsonStartIndex).trim();
                 String jsonPart = cleanOutput.substring(jsonStartIndex, jsonEndIndex).trim();
                 jsonPart = jsonPart.replace("\\\"", "\"");
+
+                // System.out.println("[DEBUG] jsonPart = " + jsonPart);
+                // System.out.println("[DEBUG] action = " + extractJsonKeyValue(jsonPart, "action"));   //use only for testing purpose
 
                 if (!chatMessage.isEmpty()) {
                     System.out.println("[BankBot]: " + chatMessage);
                 }
 
+                // 1. Always extract the action string first
                 String action = extractJsonKeyValue(jsonPart, "action");
+                // System.out.println("[DEBUG] Raw AI output: " + cleanOutput);
+                // System.out.println("[DEBUG] JSON part: " + jsonPart);
+                // System.out.println("[DEBUG] Action extracted: " + action); //testing!!!!!
 
                 int accountNo = 0;
                 float amount = 0;
@@ -142,33 +143,37 @@ public class OllamaBankBot {
                 if (!action.equalsIgnoreCase("details")) {
                     String accStr = extractJsonKeyValue(jsonPart, "account");
                     String amtStr = extractJsonKeyValue(jsonPart, "amount");
+                    
                     if (!accStr.isEmpty()) accountNo = Integer.parseInt(accStr);
-                    if(accountNo > 0 && customer.getAccount(accountNo) == null){
-                    System.out.println("[BankBot]: Account " + accountNo + " does not belong to you. Using your default account.");
-                    accountNo = customer.accounts.get(0).accNo;
                     if (!amtStr.isEmpty()) amount = Float.parseFloat(amtStr);
                 }
 
+                // 2. Validate parameters conditionally based on the intent
                 if (action.equalsIgnoreCase("deposit") || action.equalsIgnoreCase("withdraw") || action.equalsIgnoreCase("transfer")) {
                     if (accountNo < 1001) {
                         System.out.println("[BankBot]: Stopped! Invalid values parsed. (Account must be 1001 or higher.)");
+                        System.out.println("   Extracted -> Account: " + accountNo + ", Amount: " + amount);
                         return;
                     }
                     if (amount <= 0) {
                         System.out.println("[BankBot]: Stopped! Invalid values parsed. (Amount must be positive.)");
+                        System.out.println("   Extracted -> Account: " + accountNo + ", Amount: " + amount);
                         return;
                     }
                 }
 
+                // 3. Routing to the respective handler files
                 if (action.equalsIgnoreCase("deposit")) {
                     Account targetAccount = bankEngine.findAccount(accountNo);
                     if (targetAccount == null) return;
+
                     System.out.println("[BankBot]: Passing parameter maps to DepositHandler...");
                     DepositHandler.execute(targetAccount, amount, customer);
 
                 } else if (action.equalsIgnoreCase("withdraw")) {
                     Account targetAccount = bankEngine.findAccount(accountNo);
                     if (targetAccount == null) return;
+
                     System.out.println("[BankBot]: Passing parameter maps to WithdrawHandler...");
                     WithdrawHandler.execute(targetAccount, amount, customer);
 
@@ -177,8 +182,10 @@ public class OllamaBankBot {
                     if (jsonPart.contains("targetAccount")) {
                         targetAccountNo = Integer.parseInt(extractJsonKeyValue(jsonPart, "targetAccount"));
                     }
+
                     Account sourceAccount = bankEngine.findAccount(accountNo);
                     Account destinationAccount = bankEngine.findAccount(targetAccountNo);
+                    
                     if (sourceAccount == null || destinationAccount == null) {
                         System.out.println("[BankBot]: Transfer aborted! One or both account numbers do not exist.");
                         return;
@@ -187,28 +194,42 @@ public class OllamaBankBot {
                     TransferHandler.execute(sourceAccount, amount, destinationAccount, customer);
 
                 } else if (action.equalsIgnoreCase("history")) {
+                    
+                    if (accountNo == 0) {
+                        System.out.println("[BankBot]: No account number specified. Checking your active session profile...");
+
+                        Account activeAccount = bankEngine.selectAccount(customer);
+                        if (activeAccount != null) {
+                            accountNo = activeAccount.accNo;
+                        } else {
+                            System.out.println("[BankBot]: Could not find an active account for your profile.");
+                            return;
+                        }
+                    }
+
                     Account targetAccount = bankEngine.findAccount(accountNo);
                     if (targetAccount == null) return;
+
                     System.out.println("[BankBot]: Passing parameter maps to HistoryHandler...");
                     HistoryHandler.execute(targetAccount);
-
+        
                 } else if (action.equalsIgnoreCase("details")) {
                     System.out.println("[BankBot]: Passing parameter maps to DetailsHandler...");
                     DetailsHandler.execute(customer);
-
+        
                 } else {
                     System.out.println("[BankBot]: Unrecognized bank action request.");
                 }
             } else {
                 System.out.println("[BankBot]: " + cleanOutput);
             }
-        }
 
-    } catch (Exception e) {
+        } catch (Exception e) {
             System.out.println("[BankBot]: Failed parsing JSON string mapping format.");
             e.printStackTrace();
         }
     }
+
 
     private String extractJsonKeyValue(String json, String key) {
         String targetKey = "\"" + key + "\"";
@@ -216,6 +237,7 @@ public class OllamaBankBot {
         if (keyIndex == -1) return "";
 
         int colonIndex = json.indexOf(":", keyIndex);
+        
         int endIndex = json.indexOf(",", colonIndex);
         if (endIndex == -1) {
             endIndex = json.indexOf("}", colonIndex);
@@ -226,4 +248,5 @@ public class OllamaBankBot {
                 .replace(" ", "")
                 .trim();
     }
+
 }
