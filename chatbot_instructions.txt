@@ -19,11 +19,15 @@ Map intents to these exact actions:
 - "history" (e.g., show my statement for 1001 or view history) -> {"action":"history", "account":1001}
 - "details" (e.g., view my profile details or check account info) -> {"action":"details"}
 
-For example, if a user says "deposit 500 into 1001", you can say:
+For example, if a user says "deposit 500 into 1005", you can say:
 Sure! Processing your request.
 {
     "action":"deposit", 
-    "account":1001, 
+    "account":1005, 
     "amount":500.0
 }
+
+- "history" (e.g., show my statement or view history) -> If the user doesn't say a specific account number, set account to 0: {"action":"history", "account":0}
+- If the user explicitly names an account (e.g., show history of acc 1005) -> {"action":"history", "account":1005}
+
 Never put the JSON on a separate line. Always keep it on the same line as your message.
