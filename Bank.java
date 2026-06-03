@@ -57,8 +57,31 @@ class Bank {
     void addCustomer(){
         System.out.print("Enter name: ");
         String name = sc.nextLine();
-        System.out.print("Enter password: ");
-        String password = sc.nextLine();
+        
+        String password = "";
+        java.io.Console console = System.console();
+        
+        if (console != null) {
+            System.out.print("Enter password (typing will be hidden): ");
+            char[] passwordChars = console.readPassword();
+            password = new String(passwordChars);
+        } else {
+            System.out.print("Enter password: ");
+            password = sc.nextLine();
+        }
+
+        System.out.print("Do you want to view the password to double-check? (y/n): ");
+        String choice = sc.nextLine().trim().toLowerCase();
+        if (choice.equals("y") || choice.equals("yes")) {
+            System.out.println("~ Your password is: " + password);
+            System.out.print("Proceed with this password? (y/n): ");
+            String confirm = sc.nextLine().trim().toLowerCase();
+            if (!confirm.equals("y") && !confirm.equals("yes")) {
+                System.out.println("Registration failed. Try again.");
+                return;
+            }
+        }
+
         if(!PasswordManager.pwdComplexity(password)){
             System.out.println("Password does not meet complexity requirements.");
             System.out.println("Need: 6+ chars, 2 uppercase, 2 lowercase, 2 digits.");
@@ -399,7 +422,10 @@ class Bank {
 
     public static void main(String[] args){
         Bank Bank = new Bank(); // ollama run qwen3.5:4b2 in cmd prompt before executing this main method 
+        // //currently using qwen2.5:3b cuz my laptops slow ;-;
         Bank.connectToDatabase();
         Bank.mainMenu();
     }
 }
+
+//ps: this is a starter project and command-line output of "tables" might be clumsy, rest is good :D
